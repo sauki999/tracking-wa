@@ -58,8 +58,12 @@ Record DNS (A record `APP_DOMAIN` → `VPS_IP`) dibuat **manual oleh pengguna** 
 
 ### B1. Cek akses
 
+- Rapikan `DOKPLOY_URL`: tanpa skema (mis. `dokploy.domain.com`) → tambahkan `https://`; buang `/` di akhir.
+  Respons 301/308 = skema salah; ikuti alamat tujuannya.
 - Dokploy: `GET {DOKPLOY_URL}/api/project.all` dengan header `x-api-key: {DOKPLOY_API_KEY}` → harus 200.
-  401/403 → minta pengguna membuat ulang API key di Dokploy → Settings → Profile → API/CLI.
+  401 → minta pengguna membuat ulang API key di Dokploy → Settings → Profile → API/CLI.
+- Panggil API dengan `curl`, atau set header `User-Agent` sendiri (mis. `ctwa-tracker-setup/1.0`). Panel Dokploy
+  di belakang Cloudflare bisa menolak User-Agent bawaan library (mis. `Python-urllib`) dengan 403 "Error 1010".
 - Referensi lengkap API Dokploy: `{DOKPLOY_URL}/swagger` dan https://docs.dokploy.com/docs/api.
   Kalau bentuk respons berbeda dari dugaan, baca Swagger, jangan menebak.
 
@@ -80,14 +84,16 @@ Ingatkan pengguna menyimpan file ini di password manager.
 
 ### B4. Project dan compose di Dokploy (semua `POST` JSON, header `x-api-key`)
 
-1. **Project:** cari project bernama `CTWA Tracker` di `project.all`; kalau tidak ada,
-   `project.create {"name":"CTWA Tracker"}`, lalu ambil lagi lewat `project.all`.
-2. **Environment:** ambil `environmentId` dari data project (environment `production`), atau lewat
-   `GET environment.byProjectId?projectId=...`. Kalau kosong, `environment.create {"name":"production","projectId":...}`.
-3. **Compose:** cari compose bernama `ctwa-tracker` di environment itu; kalau tidak ada,
-   `compose.create {"name":"ctwa-tracker","environmentId":...,"composeType":"docker-compose"}`.
-   Ambil `composeId` dari respons atau dari data project.
-4. **Sumber & env:** `compose.update` dengan:
+Jangan mengubah atau menghapus project lain di Dokploy.
+
+1. **Project + environment:** cari project bernama `CTWA Tracker` di `project.all` (setiap project punya
+   `environments[]`, masing-masing berisi `environmentId`, `name`, `compose[]`). Kalau belum ada,
+   `project.create {"name":"CTWA Tracker"}` → respons `{"project":{"projectId",...},"environment":{"environmentId","name":"production",...}}`.
+   Kalau project sudah ada, ambil `environmentId` environment `production` dari `project.all`
+   (atau `GET project.one?projectId=...`).
+2. **Compose:** cari compose bernama `ctwa-tracker` di `environments[].compose[]`; kalau tidak ada,
+   `compose.create {"name":"ctwa-tracker","environmentId":...,"composeType":"docker-compose"}` → respons berisi `composeId`.
+3. **Sumber & env:** `compose.update` dengan:
    ```json
    {
      "composeId": "...",
@@ -95,16 +101,20 @@ Ingatkan pengguna menyimpan file ini di password manager.
      "customGitUrl": "{GIT_REPO_URL}",
      "customGitBranch": "{GIT_BRANCH}",
      "composePath": "./deploy/docker-compose.dokploy.yml",
+     "isolatedDeployment": true,
      "env": "POSTGRES_PASSWORD=...\nAPP_URL=https://{APP_DOMAIN}\nBETTER_AUTH_SECRET=...\nENCRYPTION_KEY=...\nINTERNAL_TOKEN=..."
    }
    ```
+   `isolatedDeployment: true` WAJIB: tanpa itu service `engine`/`db` bisa tertukar dengan service bernama sama
+   milik aplikasi lain di jaringan bersama `dokploy-network`.
    Repo **private**: buat SSH key di Dokploy (bagian `sshKey` di Swagger), pasang public key-nya sebagai
    deploy key read-only di GitHub (`gh repo deploy-key add`), lalu pakai URL `git@github.com:<owner>/<repo>.git`
    dan isi `customGitSSHKeyId`.
-5. **Domain:** kalau `GET domain.byComposeId?composeId=...` belum memuat `APP_DOMAIN`, buat:
+4. **Domain:** kalau `GET domain.byComposeId?composeId=...` belum memuat `APP_DOMAIN`, buat:
    `domain.create {"host":"{APP_DOMAIN}","port":3000,"serviceName":"app","https":true,"certificateType":"letsencrypt","composeId":"...","domainType":"compose"}`.
-6. **Deploy:** `compose.deploy {"composeId":"..."}`. Build pertama 5–15 menit.
-   Pantau status di `compose.one?composeId=...` (atau minta pengguna melihat tab Deployments di Dokploy).
+5. **Deploy:** `compose.deploy {"composeId":"..."}`. Build pertama 5–15 menit.
+   Pantau `composeStatus` di `GET compose.one?composeId=...` (`running` → `done` atau `error`) tiap ~20 detik;
+   `error` → minta pengguna membuka tab Deployments di Dokploy dan menyalin baris error terakhir.
 
 ### B5. Verifikasi
 
