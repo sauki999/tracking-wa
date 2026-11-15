@@ -52,9 +52,11 @@ Update versi: `git pull` lalu ulangi langkah 3.
 
 ## B. Mode `dokploy` (VPS + Dokploy)
 
-Variabel wajib di `.env.setup`: `DOKPLOY_URL`, `DOKPLOY_API_KEY`, `APP_DOMAIN`, `VPS_IP`,
-`GIT_REPO_URL`, `GIT_BRANCH`, dan data admin.
-Record DNS (A record `APP_DOMAIN` → `VPS_IP`) dibuat **manual oleh pengguna** di Cloudflare; AI hanya mengecek.
+Variabel wajib di `.env.setup`: `DOKPLOY_URL`, `DOKPLOY_API_KEY`, `APP_DOMAIN`, `GIT_REPO_URL`, `GIT_BRANCH`,
+dan data admin.
+
+HTTPS ditangani **Cloudflare**, bukan Let's Encrypt: pengguna membuat A record `APP_DOMAIN` → IP VPS dengan
+proxy **aktif** (awan oranye) dan SSL/TLS mode **Full** secara manual. AI tidak memegang token Cloudflare.
 
 ### B1. Cek akses
 
@@ -69,12 +71,12 @@ Record DNS (A record `APP_DOMAIN` → `VPS_IP`) dibuat **manual oleh pengguna** 
 
 ### B2. Cek DNS (dibuat manual oleh pengguna)
 
-- Jalankan `nslookup {APP_DOMAIN} 1.1.1.1`. Hasilnya harus `VPS_IP`.
-- Belum cocok → minta pengguna, dengan bahasa awam: buka Cloudflare → pilih domain → DNS → Records →
-  Add record → Type `A`, Name = bagian depan subdomain (mis. `ctwa`), IPv4 address = `VPS_IP`,
-  Proxy status **mati** (awan abu-abu / DNS only) → Save. Tunggu 1–5 menit, cek lagi.
-- Kalau hasilnya IP Cloudflare (record masih Proxied), minta pengguna mematikan proxy dulu supaya sertifikat
-  Let's Encrypt bisa terbit. Lanjut ke langkah berikutnya hanya setelah DNS cocok.
+- Jalankan `nslookup {APP_DOMAIN} 1.1.1.1`. Hasilnya harus IP milik Cloudflare (mis. `104.x.x.x` / `172.6x.x.x`),
+  tanda record sudah Proxied.
+- Tidak ditemukan → minta pengguna, dengan bahasa awam: Cloudflare → pilih domain → DNS → Records → Add record →
+  Type `A`, Name = bagian depan subdomain (mis. `ctwa`), IPv4 address = IP VPS, Proxy status **aktif**
+  (awan oranye) → Save. Lalu SSL/TLS → Overview → mode **Full**. Tunggu 1–5 menit, cek lagi.
+- Hasilnya IP VPS (bukan Cloudflare) → record masih DNS only; minta pengguna mengaktifkan proxy (awan oranye).
 
 ### B3. Secret produksi
 
@@ -111,20 +113,22 @@ Jangan mengubah atau menghapus project lain di Dokploy.
    deploy key read-only di GitHub (`gh repo deploy-key add`), lalu pakai URL `git@github.com:<owner>/<repo>.git`
    dan isi `customGitSSHKeyId`.
 4. **Domain:** kalau `GET domain.byComposeId?composeId=...` belum memuat `APP_DOMAIN`, buat:
-   `domain.create {"host":"{APP_DOMAIN}","port":3000,"serviceName":"app","https":true,"certificateType":"letsencrypt","composeId":"...","domainType":"compose"}`.
+   `certificateType: "none"`: sertifikat publik dari Cloudflare; Traefik cukup memakai sertifikat bawaannya
+   (diterima oleh SSL mode Full).
+   `domain.create {"host":"{APP_DOMAIN}","port":3000,"serviceName":"app","https":true,"certificateType":"none","composeId":"...","domainType":"compose"}`.
 5. **Deploy:** `compose.deploy {"composeId":"..."}`. Build pertama 5–15 menit.
    Pantau `composeStatus` di `GET compose.one?composeId=...` (`running` → `done` atau `error`) tiap ~20 detik;
    `error` → minta pengguna membuka tab Deployments di Dokploy dan menyalin baris error terakhir.
 
 ### B5. Verifikasi
 
-- Tunggu `GET https://{APP_DOMAIN}/api/health` → `{"ok":true}`. Sertifikat bisa butuh beberapa menit setelah
-  deploy selesai. Masih gagal setelah ~10 menit → cek DNS (`nslookup {APP_DOMAIN}` harus `VPS_IP`),
-  port 80/443 terbuka di firewall VPS, dan log deploy di Dokploy.
-- VPS yang hanya menerima koneksi dari Cloudflare (port 80 tertutup, atau port 443 menjawab
-  `alert certificate required` = Authenticated Origin Pulls): Let's Encrypt tidak bisa terbit. Ubah domain ke
-  `certificateType: "none"` (`domain.update`), lalu minta pengguna: record dijadikan **Proxied** (awan oranye),
-  SSL/TLS mode **Full**, dan Authenticated Origin Pulls aktif di zona itu bila VPS memintanya. Deploy ulang.
+- Tunggu `GET https://{APP_DOMAIN}/api/health` → `{"ok":true}` (beberapa menit setelah deploy `done`).
+- Error Cloudflare:
+  - "too many redirects" / `ERR_TOO_MANY_REDIRECTS` → SSL/TLS mode masih **Flexible**; minta pengguna ganti ke **Full**.
+  - 521 / 522 → Cloudflare tidak bisa menghubungi VPS: port 443 tertutup di firewall VPS, atau IP di A record salah.
+  - 525 / 526 → SSL mode **Full (strict)**; minta pengguna ganti ke **Full**. Kalau VPS memakai Authenticated
+    Origin Pulls (port 443 menjawab `alert certificate required`), fitur itu juga harus aktif di zona domain.
+  - 502 dengan body `error code: 502` padahal container jalan → cek domain di Dokploy (port 3000, service `app`).
 - Cek engine: setelah login, `GET {BASE}/api/panel/stats` (admin) harus punya `engine` yang tidak `null`.
   `null` = app tidak bisa menghubungi engine → pastikan `isolatedDeployment` aktif, lalu deploy ulang.
 - Buat akun admin (bagian C) dengan `BASE=https://{APP_DOMAIN}`.
