@@ -1,0 +1,12 @@
+# Postgres lokal untuk development
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ctwa
+      POSTGRES_PASSWORD: ctwa
+      POSTGRES_DB: ctwa_tracker
+    ports: ["55432:5432"]
+    volumes: [ctwa-pg:/var/lib/postgresql/data]
+volumes:
+  ctwa-pg:
