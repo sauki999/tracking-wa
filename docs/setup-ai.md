@@ -121,6 +121,12 @@ Jangan mengubah atau menghapus project lain di Dokploy.
 - Tunggu `GET https://{APP_DOMAIN}/api/health` → `{"ok":true}`. Sertifikat bisa butuh beberapa menit setelah
   deploy selesai. Masih gagal setelah ~10 menit → cek DNS (`nslookup {APP_DOMAIN}` harus `VPS_IP`),
   port 80/443 terbuka di firewall VPS, dan log deploy di Dokploy.
+- VPS yang hanya menerima koneksi dari Cloudflare (port 80 tertutup, atau port 443 menjawab
+  `alert certificate required` = Authenticated Origin Pulls): Let's Encrypt tidak bisa terbit. Ubah domain ke
+  `certificateType: "none"` (`domain.update`), lalu minta pengguna: record dijadikan **Proxied** (awan oranye),
+  SSL/TLS mode **Full**, dan Authenticated Origin Pulls aktif di zona itu bila VPS memintanya. Deploy ulang.
+- Cek engine: setelah login, `GET {BASE}/api/panel/stats` (admin) harus punya `engine` yang tidak `null`.
+  `null` = app tidak bisa menghubungi engine → pastikan `isolatedDeployment` aktif, lalu deploy ulang.
 - Buat akun admin (bagian C) dengan `BASE=https://{APP_DOMAIN}`.
 - Laporkan: URL aplikasi, email login, nama project di Dokploy.
 
