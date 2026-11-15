@@ -1,7 +1,7 @@
 # Deploy CTWA Tracker
 
 > Pakai Dokploy? Biarkan AI yang mengerjakan: lihat [docs/setup-ai.md](../docs/setup-ai.md) mode `dokploy`
-> (memakai `deploy/docker-compose.dokploy.yml`, API Dokploy, dan subdomain Cloudflare).
+> (memakai `deploy/docker-compose.dokploy.yml` dan API Dokploy; A record subdomain dibuat manual).
 > Panduan di bawah ini untuk VPS polos dengan Docker saja.
 
 Cara paling sederhana: satu VPS (Ubuntu, RAM ≥ 1 GB) dengan Docker. Semua jalan lewat `deploy/docker-compose.yml`:

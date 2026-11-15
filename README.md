@@ -33,7 +33,7 @@ Salin `.env.setup.example` menjadi `.env.setup`, isi, lalu minta AI assistant (C
 
 > Pasang aplikasi ini mengikuti docs/setup-ai.md
 
-Ada dua mode: `local` (laptop, cukup Docker Desktop) dan `dokploy` (VPS + Dokploy + subdomain Cloudflare).
+Ada dua mode: `dokploy` (VPS + Dokploy; A record subdomain dibuat manual di DNS) dan `local` (laptop, cukup Docker Desktop).
 User pertama yang mendaftar otomatis menjadi admin.
 
 ## Prasyarat (setup manual / development)

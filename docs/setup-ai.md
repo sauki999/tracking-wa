@@ -50,29 +50,27 @@ Semua komponen (Postgres, app, WhatsApp engine) jalan di Docker. Tidak perlu Bun
 
 Update versi: `git pull` lalu ulangi langkah 3.
 
-## B. Mode `dokploy` (VPS + Dokploy + Cloudflare)
+## B. Mode `dokploy` (VPS + Dokploy)
 
-Variabel wajib di `.env.setup`: `DOKPLOY_URL`, `DOKPLOY_API_KEY`, `CLOUDFLARE_API_TOKEN`, `APP_DOMAIN`, `VPS_IP`,
+Variabel wajib di `.env.setup`: `DOKPLOY_URL`, `DOKPLOY_API_KEY`, `APP_DOMAIN`, `VPS_IP`,
 `GIT_REPO_URL`, `GIT_BRANCH`, dan data admin.
+Record DNS (A record `APP_DOMAIN` → `VPS_IP`) dibuat **manual oleh pengguna** di Cloudflare; AI hanya mengecek.
 
 ### B1. Cek akses
 
 - Dokploy: `GET {DOKPLOY_URL}/api/project.all` dengan header `x-api-key: {DOKPLOY_API_KEY}` → harus 200.
   401/403 → minta pengguna membuat ulang API key di Dokploy → Settings → Profile → API/CLI.
-- Cloudflare: `GET https://api.cloudflare.com/client/v4/user/tokens/verify` dengan
-  `Authorization: Bearer {CLOUDFLARE_API_TOKEN}` → `success: true`.
 - Referensi lengkap API Dokploy: `{DOKPLOY_URL}/swagger` dan https://docs.dokploy.com/docs/api.
   Kalau bentuk respons berbeda dari dugaan, baca Swagger, jangan menebak.
 
-### B2. Subdomain di Cloudflare
+### B2. Cek DNS (dibuat manual oleh pengguna)
 
-1. Cari zona: `GET /client/v4/zones?name=<domain induk>`. Domain induk = `APP_DOMAIN` tanpa label pertama;
-   kalau tidak ketemu, coba buang label berikutnya (untuk domain seperti `x.co.id`).
-2. Cek record: `GET /client/v4/zones/{zone_id}/dns_records?name={APP_DOMAIN}`.
-3. Buat (`POST`) atau perbarui (`PATCH`) record:
-   `{"type":"A","name":"{APP_DOMAIN}","content":"{VPS_IP}","ttl":1,"proxied":false}`.
-   `proxied:false` (DNS only) supaya sertifikat Let's Encrypt di Dokploy terbit tanpa hambatan.
-   Jangan mengubah pengaturan zona lain (SSL mode, record lain).
+- Jalankan `nslookup {APP_DOMAIN} 1.1.1.1`. Hasilnya harus `VPS_IP`.
+- Belum cocok → minta pengguna, dengan bahasa awam: buka Cloudflare → pilih domain → DNS → Records →
+  Add record → Type `A`, Name = bagian depan subdomain (mis. `ctwa`), IPv4 address = `VPS_IP`,
+  Proxy status **mati** (awan abu-abu / DNS only) → Save. Tunggu 1–5 menit, cek lagi.
+- Kalau hasilnya IP Cloudflare (record masih Proxied), minta pengguna mematikan proxy dulu supaya sertifikat
+  Let's Encrypt bisa terbit. Lanjut ke langkah berikutnya hanya setelah DNS cocok.
 
 ### B3. Secret produksi
 
@@ -114,8 +112,7 @@ Ingatkan pengguna menyimpan file ini di password manager.
   deploy selesai. Masih gagal setelah ~10 menit → cek DNS (`nslookup {APP_DOMAIN}` harus `VPS_IP`),
   port 80/443 terbuka di firewall VPS, dan log deploy di Dokploy.
 - Buat akun admin (bagian C) dengan `BASE=https://{APP_DOMAIN}`.
-- Laporkan: URL aplikasi, email login, nama project di Dokploy. Sarankan, setelah semua jalan, record Cloudflare
-  boleh diubah jadi Proxied (awan oranye) dengan SSL mode **Full (strict)**.
+- Laporkan: URL aplikasi, email login, nama project di Dokploy.
 
 Update versi: `compose.deploy` lagi (atau tombol Deploy di Dokploy).
 
