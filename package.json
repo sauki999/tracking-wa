@@ -1,6 +1,7 @@
 {
   "name": "ctwa-tracker",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
   "workspaces": ["apps/*"],
   "scripts": {
     "dev:api": "bun run --cwd apps/api dev",

@@ -78,3 +78,15 @@ Lihat [deploy/README.md](deploy/README.md). Cukup satu VPS kecil (RAM 1 GB) deng
 - Halaman pendaftaran (`/register`) terbuka untuk siapa saja. Kalau aplikasi dipasang di domain publik,
   pertimbangkan menutupnya setelah akun Anda dibuat.
 - Aplikasi ini memakai WhatsApp Web multi-device (whatsmeow), bukan API resmi WhatsApp. Gunakan dengan bijak.
+
+## Lisensi
+
+[PolyForm Internal Use 1.0.0](LICENSE.md). Ringkasnya:
+
+- ✅ Boleh dipakai dan dimodifikasi untuk operasional bisnis Anda sendiri, berapa pun jumlah nomornya.
+- ❌ Tidak boleh dibagikan ulang, dijual, atau dijadikan layanan (SaaS) untuk orang lain.
+- Simpan salinan/fork Anda sebagai repo **private**.
+
+Ringkasan ini bukan pengganti teks lisensi; yang berlaku adalah [LICENSE.md](LICENSE.md).
+
+Required Notice: Copyright (c) 2026 Ibrahim Vatih (https://github.com/vatih/ctwa-tracker)
