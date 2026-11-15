@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { count } from "drizzle-orm";
 import { db, schema } from "./db";
 import { env } from "./env";
 
@@ -25,6 +26,17 @@ export const auth = betterAuth({
     },
   },
   advanced: { database: { generateId: () => crypto.randomUUID() } },
+  databaseHooks: {
+    user: {
+      create: {
+        // user pertama yang mendaftar otomatis jadi admin
+        before: async (user) => {
+          const [{ n }] = await db.select({ n: count() }).from(schema.user);
+          return { data: { ...user, role: n === 0 ? "admin" : "user" } };
+        },
+      },
+    },
+  },
 });
 
 export type AuthUser = typeof auth.$Infer.Session.user;

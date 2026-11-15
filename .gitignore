@@ -3,6 +3,7 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.setup.example
 *.log
 engine/bin/
 .claude/settings.local.json

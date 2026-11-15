@@ -1,5 +1,9 @@
 # Deploy CTWA Tracker
 
+> Pakai Dokploy? Biarkan AI yang mengerjakan: lihat [docs/setup-ai.md](../docs/setup-ai.md) mode `dokploy`
+> (memakai `deploy/docker-compose.dokploy.yml`, API Dokploy, dan subdomain Cloudflare).
+> Panduan di bawah ini untuk VPS polos dengan Docker saja.
+
 Cara paling sederhana: satu VPS (Ubuntu, RAM ≥ 1 GB) dengan Docker. Semua jalan lewat `deploy/docker-compose.yml`:
 Postgres, app (API + web), dan WhatsApp engine.
 
@@ -41,10 +45,11 @@ Kalau memakai Dokploy / Coolify, cukup arahkan domain ke service `app` port 3000
 
 ## 4. Akun admin
 
-Daftar di `https://ctwa.domainanda.com/register`, lalu:
+Daftar di `https://ctwa.domainanda.com/register`. User pertama otomatis menjadi admin.
+Admin tambahan:
 
 ```bash
-docker compose -f deploy/docker-compose.yml exec app bun src/db/make-admin.ts email@anda.com
+docker compose -f deploy/docker-compose.yml exec app bun src/db/make-admin.ts email@lain.com
 ```
 
 Panel admin: `https://ctwa.domainanda.com/panel`.

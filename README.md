@@ -27,7 +27,16 @@ Read-only: aplikasi hanya membaca chat WhatsApp, tidak pernah membalas.
 
 Alur data: engine menerima pesan → buffer → batch insert ke Postgres → `NOTIFY ctwa_ingest` → API mengevaluasi trigger & mengirim CAPI.
 
-## Prasyarat
+## Setup cepat dengan AI
+
+Salin `.env.setup.example` menjadi `.env.setup`, isi, lalu minta AI assistant (Claude Code, Copilot, Cursor):
+
+> Pasang aplikasi ini mengikuti docs/setup-ai.md
+
+Ada dua mode: `local` (laptop, cukup Docker Desktop) dan `dokploy` (VPS + Dokploy + subdomain Cloudflare).
+User pertama yang mendaftar otomatis menjadi admin.
+
+## Prasyarat (setup manual / development)
 
 - [Bun](https://bun.sh) 1.3+
 - [Go](https://go.dev) 1.26+
@@ -45,11 +54,8 @@ bun run dev:web                                           # http://localhost:517
 cd engine && go run ./cmd/engine                          # butuh DATABASE_URL & INTERNAL_TOKEN di environment
 ```
 
-Buka http://localhost:5173/register, buat akun, lalu jadikan admin:
-
-```bash
-cd apps/api && bun src/db/make-admin.ts email@anda.com
-```
+Buka http://localhost:5173/register dan buat akun. User pertama otomatis menjadi admin.
+Admin tambahan: `cd apps/api && bun src/db/make-admin.ts email@lain.com`.
 
 Data contoh untuk latihan (opsional):
 
