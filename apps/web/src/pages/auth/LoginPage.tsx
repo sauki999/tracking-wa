@@ -34,12 +34,6 @@ export function LoginPage() {
           <Button type="submit" loading={loading}>
             Masuk
           </Button>
-          <Text size="sm" ta="center">
-            Belum punya akun?{" "}
-            <Anchor component={Link} to="/register">
-              Daftar
-            </Anchor>
-          </Text>
         </Stack>
       </form>
     </AuthCard>

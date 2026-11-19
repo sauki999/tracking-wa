@@ -54,25 +54,36 @@ export const panelRoutes = new Hono<AppEnv>()
     ),
     async (c) => {
       const { name, email, password, role } = c.req.valid("json");
-      const [existing] = await db.select({ id: U.id }).from(U).where(eq(U.email, email.toLowerCase()));
+      const emailLower = email.toLowerCase();
+      const [existing] = await db.select({ id: U.id }).from(U).where(eq(U.email, emailLower));
       if (existing) {
         throw new HTTPException(400, { message: "Email sudah terdaftar" });
       }
 
       try {
-        const res = await auth.api.signUpEmail({
-          body: {
-            name,
-            email: email.toLowerCase(),
-            password,
-          },
+        const ctx = await auth.$context;
+        const hashedPassword = await ctx.password.hash(password);
+        const userId = crypto.randomUUID();
+        const accountId = crypto.randomUUID();
+
+        await db.insert(U).values({
+          id: userId,
+          name,
+          email: emailLower,
+          emailVerified: true,
+          role,
+          suspended: false,
         });
 
-        if (res && res.user && role === "admin") {
-          await db.update(U).set({ role: "admin" }).where(eq(U.id, res.user.id));
-        }
+        await db.insert(schema.account).values({
+          id: accountId,
+          accountId: userId,
+          providerId: "credential",
+          userId,
+          password: hashedPassword,
+        });
 
-        return c.json({ ok: true, user: res?.user });
+        return c.json({ ok: true, user: { id: userId, name, email: emailLower, role } });
       } catch (err: any) {
         throw new HTTPException(400, { message: err.message || "Gagal membuat user" });
       }
@@ -83,26 +94,54 @@ export const panelRoutes = new Hono<AppEnv>()
     const { id } = c.req.valid("param");
     const [user] = await db.select().from(U).where(eq(U.id, id));
     if (!user) throw new HTTPException(404, { message: "User tidak ditemukan" });
-    const accounts = await db.select().from(A).where(eq(A.userId, id)).orderBy(A.createdAt);
+    const accounts = await db.select().from(A).where(or(eq(A.userId, id), eq(A.assignedUserId, id))).orderBy(A.createdAt);
     return c.json({ user, accounts });
   })
 
   .patch(
     "/users/:id",
     idParam,
-    v("json", z.object({ suspended: z.boolean().optional(), role: z.enum(["user", "admin"]).optional() })),
+    v(
+      "json",
+      z.object({
+        name: z.string().trim().min(2).max(100).optional(),
+        email: z.string().trim().email().optional(),
+        password: z.string().min(8).max(128).optional(),
+        suspended: z.boolean().optional(),
+        role: z.enum(["user", "admin"]).optional(),
+      }),
+    ),
     async (c) => {
       const { id } = c.req.valid("param");
       const b = c.req.valid("json");
       if (id === c.get("user")!.id && (b.suspended || b.role === "user")) {
         throw new HTTPException(400, { message: "Tidak bisa menonaktifkan / menurunkan diri sendiri" });
       }
-      if (b.suspended !== undefined || b.role !== undefined) {
-        await db
-          .update(U)
-          .set({ ...(b.suspended !== undefined && { suspended: b.suspended }), ...(b.role && { role: b.role }) })
-          .where(eq(U.id, id));
+
+      const updateData: Record<string, any> = {};
+      if (b.name !== undefined) updateData.name = b.name;
+      if (b.email !== undefined) {
+        const emailLower = b.email.toLowerCase();
+        const [dup] = await db.select({ id: U.id }).from(U).where(and(eq(U.email, emailLower), sql`${U.id} <> ${id}`));
+        if (dup) throw new HTTPException(400, { message: "Email sudah dipakai user lain" });
+        updateData.email = emailLower;
       }
+      if (b.suspended !== undefined) updateData.suspended = b.suspended;
+      if (b.role !== undefined) updateData.role = b.role;
+
+      if (Object.keys(updateData).length > 0) {
+        await db.update(U).set(updateData).where(eq(U.id, id));
+      }
+
+      if (b.password) {
+        const ctx = await auth.$context;
+        const hashedPassword = await ctx.password.hash(b.password);
+        await db
+          .update(schema.account)
+          .set({ password: hashedPassword })
+          .where(and(eq(schema.account.userId, id), eq(schema.account.providerId, "credential")));
+      }
+
       if (b.suspended) {
         // putus semua sesi & logout paksa dari web
         await db.delete(schema.session).where(eq(schema.session.userId, id));
@@ -112,6 +151,19 @@ export const panelRoutes = new Hono<AppEnv>()
       return c.json({ ok: true });
     },
   )
+
+  .delete("/users/:id", idParam, async (c) => {
+    const { id } = c.req.valid("param");
+    if (id === c.get("user")!.id) {
+      throw new HTTPException(400, { message: "Tidak bisa menghapus akun sendiri" });
+    }
+    await db.delete(schema.session).where(eq(schema.session.userId, id));
+    await db.delete(schema.account).where(eq(schema.account.userId, id));
+    // Release assigned wa accounts
+    await db.update(A).set({ assignedUserId: null }).where(eq(A.assignedUserId, id));
+    await db.delete(U).where(eq(U.id, id));
+    return c.json({ ok: true });
+  })
 
   .get("/stats", async (c) => {
     const [[users], [accounts], [connected], metrics] = await Promise.all([

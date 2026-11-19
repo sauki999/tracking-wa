@@ -244,16 +244,24 @@ export function WaAccountsPage() {
             <Select
               label="Pilih CS"
               placeholder="Pilih staff CS..."
+              allowDeselect={false}
               data={[
                 { value: "", label: "— Lepas Penugasan (Hanya Admin) —" },
-                ...(usersQuery.data?.map((u) => ({
-                  value: u.id,
-                  label: `${u.name} (${u.email})`,
-                })) ?? []),
+                ...(usersQuery.data
+                  ?.filter((u) => u.role !== "admin")
+                  .map((u) => ({
+                    value: u.id,
+                    label: `${u.name} (${u.email})`,
+                  })) ?? []),
               ]}
-              value={selectedUserId}
-              onChange={setSelectedUserId}
+              value={selectedUserId ?? ""}
+              onChange={(val) => setSelectedUserId(val || null)}
             />
+            {usersQuery.data?.filter((u) => u.role !== "admin").length === 0 && (
+              <Text size="xs" c="orange">
+                Belum ada akun Staff CS. Buat akun Staff CS terlebih dahulu di menu <b>Admin Panel → Users</b>.
+              </Text>
+            )}
             <Group justify="flex-end" mt="md">
               <Button variant="default" onClick={() => setAssignAccount(null)}>
                 Batal

@@ -18,7 +18,7 @@ import {
 import { useDebouncedValue } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { IconBan, IconDots, IconPlus, IconSearch, IconUserCheck } from "@tabler/icons-react";
+import { IconBan, IconDots, IconEdit, IconPlus, IconSearch, IconTrash, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, unwrap } from "../../lib/api";
@@ -47,6 +47,9 @@ export function UsersPage() {
   const [createOpened, setCreateOpened] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "user" as "user" | "admin" });
 
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", email: "", password: "", role: "user" as "user" | "admin" });
+
   const users = useQuery({ queryKey: ["panel-users", q], queryFn: () => fetchUsers(q || undefined) });
   const stats = useQuery({ queryKey: ["panel-stats"], queryFn: () => unwrap(api.panel.stats.$get()), refetchInterval: 30_000 });
   const refresh = () => qc.invalidateQueries({ queryKey: ["panel-users"] });
@@ -62,11 +65,41 @@ export function UsersPage() {
     onError: (e) => notifications.show({ color: "red", message: e.message }),
   });
 
+  const update = useMutation({
+    mutationFn: () => {
+      if (!editUser) return Promise.resolve();
+      const payload: Record<string, any> = {
+        name: editForm.name,
+        email: editForm.email,
+        role: editForm.role,
+      };
+      if (editForm.password.trim()) {
+        payload.password = editForm.password.trim();
+      }
+      return unwrap((api.panel.users as any)[":id"].$patch({ param: { id: editUser.id }, json: payload }));
+    },
+    onSuccess: () => {
+      notifications.show({ color: "teal", message: "Data user berhasil diperbarui" });
+      setEditUser(null);
+      refresh();
+    },
+    onError: (e) => notifications.show({ color: "red", message: e.message }),
+  });
+
   const patch = useMutation({
     mutationFn: (p: { id: string; json: { suspended?: boolean; capiSentTotal?: number } }) =>
       unwrap(api.panel.users[":id"].$patch({ param: { id: p.id }, json: p.json })),
     onSuccess: () => {
       notifications.show({ color: "teal", message: "Tersimpan" });
+      refresh();
+    },
+    onError: (e) => notifications.show({ color: "red", message: e.message }),
+  });
+
+  const removeUser = useMutation({
+    mutationFn: (id: string) => unwrap((api.panel.users as any)[":id"].$delete({ param: { id } })),
+    onSuccess: () => {
+      notifications.show({ color: "teal", message: "User berhasil dihapus" });
       refresh();
     },
     onError: (e) => notifications.show({ color: "red", message: e.message }),
@@ -87,6 +120,30 @@ export function UsersPage() {
       onConfirm: () => patch.mutate({ id: u.id, json: { suspended: !u.suspended } }),
     });
 
+  const confirmDelete = (u: User) =>
+    modals.openConfirmModal({
+      title: `Hapus user ${u.name}?`,
+      children: (
+        <Text size="sm">
+          Akun <b>{u.email}</b> beserta semua sesi loginnya akan dihapus permanen. Nomor WA yang sebelumnya ditugaskan ke
+          user ini akan dilepas kembali ke Admin.
+        </Text>
+      ),
+      labels: { confirm: "Hapus Permanen", cancel: "Batal" },
+      confirmProps: { color: "red" },
+      onConfirm: () => removeUser.mutate(u.id),
+    });
+
+  const openEdit = (u: User) => {
+    setEditUser(u);
+    setEditForm({
+      name: u.name,
+      email: u.email,
+      password: "",
+      role: u.role,
+    });
+  };
+
   const e = stats.data?.engine;
   return (
     <Stack>
@@ -104,6 +161,7 @@ export function UsersPage() {
         <Stat label="RAM engine (heap / sys)" value={e ? `${e.heapInuseMB.toFixed(0)} / ${e.sysMB.toFixed(0)} MB` : "—"} />
       </SimpleGrid>
 
+      {/* Modal Tambah User */}
       <Modal opened={createOpened} onClose={() => setCreateOpened(false)} title="Tambah User Baru (Staff CS / Admin)">
         <form
           onSubmit={(e) => {
@@ -117,7 +175,10 @@ export function UsersPage() {
               placeholder="Nama Staff CS"
               required
               value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.currentTarget.value }))}
+              onChange={(e) => {
+                const val = e.target.value;
+                setForm((f) => ({ ...f, name: val }));
+              }}
             />
             <TextInput
               label="Email"
@@ -125,7 +186,10 @@ export function UsersPage() {
               type="email"
               required
               value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.currentTarget.value }))}
+              onChange={(e) => {
+                const val = e.target.value;
+                setForm((f) => ({ ...f, email: val }));
+              }}
             />
             <PasswordInput
               label="Password"
@@ -133,10 +197,14 @@ export function UsersPage() {
               required
               minLength={8}
               value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.currentTarget.value }))}
+              onChange={(e) => {
+                const val = e.target.value;
+                setForm((f) => ({ ...f, password: val }));
+              }}
             />
             <Select
               label="Role"
+              allowDeselect={false}
               data={[
                 { value: "user", label: "Staff CS (User)" },
                 { value: "admin", label: "Admin" },
@@ -156,11 +224,70 @@ export function UsersPage() {
         </form>
       </Modal>
 
+      {/* Modal Edit User */}
+      <Modal opened={!!editUser} onClose={() => setEditUser(null)} title={`Edit User: ${editUser?.name}`}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            update.mutate();
+          }}
+        >
+          <Stack gap="sm">
+            <TextInput
+              label="Nama"
+              required
+              value={editForm.name}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEditForm((f) => ({ ...f, name: val }));
+              }}
+            />
+            <TextInput
+              label="Email"
+              type="email"
+              required
+              value={editForm.email}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEditForm((f) => ({ ...f, email: val }));
+              }}
+            />
+            <PasswordInput
+              label="Password Baru"
+              placeholder="Kosongkan jika tidak ingin mengubah password"
+              value={editForm.password}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEditForm((f) => ({ ...f, password: val }));
+              }}
+            />
+            <Select
+              label="Role"
+              allowDeselect={false}
+              data={[
+                { value: "user", label: "Staff CS (User)" },
+                { value: "admin", label: "Admin" },
+              ]}
+              value={editForm.role}
+              onChange={(v) => setEditForm((f) => ({ ...f, role: (v as "user" | "admin") || "user" }))}
+            />
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={() => setEditUser(null)}>
+                Batal
+              </Button>
+              <Button type="submit" loading={update.isPending}>
+                Simpan Perubahan
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
+
       <TextInput
         placeholder="Cari email atau nama"
         leftSection={<IconSearch size={16} />}
         value={search}
-        onChange={(ev) => setSearch(ev.currentTarget.value)}
+        onChange={(ev) => setSearch(ev.target.value)}
         maw={360}
       />
 
@@ -218,12 +345,18 @@ export function UsersPage() {
                         </ActionIcon>
                       </Menu.Target>
                       <Menu.Dropdown>
+                        <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => openEdit(u)}>
+                          Edit user
+                        </Menu.Item>
                         <Menu.Item
                           color={u.suspended ? "teal" : "red"}
-                          leftSection={u.suspended ? <IconUserCheck size={14} /> : <IconBan size={14} />}
+                          leftSection={u.suspended ? <IconUserCheck size={14} />}
                           onClick={() => confirmSuspend(u)}
                         >
                           {u.suspended ? "Aktifkan user" : "Nonaktifkan user"}
+                        </Menu.Item>
+                        <Menu.Item color="red" leftSection={<IconTrash size={14} />} onClick={() => confirmDelete(u)}>
+                          Hapus user
                         </Menu.Item>
                       </Menu.Dropdown>
                     </Menu>

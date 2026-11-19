@@ -14,7 +14,7 @@ import { WaAccountsPage } from "./pages/wa-accounts/WaAccountsPage";
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/app/leads" replace /> },
   { path: "/login", element: <LoginPage /> },
-  { path: "/register", element: <RegisterPage /> },
+  { path: "/register", element: <Navigate to="/login" replace /> },
   {
     path: "/app",
     element: <AppLayout />,
