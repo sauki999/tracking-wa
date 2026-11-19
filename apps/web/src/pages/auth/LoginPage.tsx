@@ -1,8 +1,8 @@
-import { Anchor, Button, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import { Button, PasswordInput, Stack, TextInput } from "@mantine/core";
 import { isEmail, isNotEmpty, useForm } from "@mantine/form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { authClient } from "../../lib/auth";
 import { AuthCard } from "./AuthCard";
 

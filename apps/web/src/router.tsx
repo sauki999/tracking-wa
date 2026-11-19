@@ -2,7 +2,6 @@ import { createBrowserRouter, Navigate } from "react-router";
 import { AppLayout } from "./layouts/AppLayout";
 import { PanelLayout } from "./layouts/PanelLayout";
 import { LoginPage } from "./pages/auth/LoginPage";
-import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CapiLogsPage } from "./pages/capi-logs/CapiLogsPage";
 import { DocsPage } from "./pages/docs/DocsPage";
 import { LeadsPage } from "./pages/leads/LeadsPage";

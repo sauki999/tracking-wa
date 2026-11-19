@@ -350,7 +350,7 @@ export function UsersPage() {
                         </Menu.Item>
                         <Menu.Item
                           color={u.suspended ? "teal" : "red"}
-                          leftSection={u.suspended ? <IconUserCheck size={14} />}
+                          leftSection={u.suspended ? <IconUserCheck size={14} /> : <IconBan size={14} />}
                           onClick={() => confirmSuspend(u)}
                         >
                           {u.suspended ? "Aktifkan user" : "Nonaktifkan user"}
