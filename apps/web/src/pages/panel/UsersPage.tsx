@@ -18,7 +18,7 @@ import {
 import { useDebouncedValue } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { IconBan, IconDots, IconEdit, IconPlus, IconSearch, IconTrash, IconUserCheck } from "@tabler/icons-react";
+import { IconBan, IconDots, IconPencil, IconPlus, IconSearch, IconTrash, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, unwrap } from "../../lib/api";
@@ -345,7 +345,7 @@ export function UsersPage() {
                         </ActionIcon>
                       </Menu.Target>
                       <Menu.Dropdown>
-                        <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => openEdit(u)}>
+                        <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => openEdit(u)}>
                           Edit user
                         </Menu.Item>
                         <Menu.Item
