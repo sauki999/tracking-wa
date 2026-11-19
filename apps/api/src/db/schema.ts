@@ -108,6 +108,8 @@ export const waAccounts = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    assignedUserId: text("assigned_user_id")
+      .references(() => user.id, { onDelete: "set null" }),
     label: text("label"),
     jid: text("jid"), // device JID whatsmeow, terisi setelah pairing
     phone: text("phone"),
@@ -119,6 +121,7 @@ export const waAccounts = pgTable(
   },
   (t) => [
     index("wa_accounts_user_idx").on(t.userId),
+    index("wa_accounts_assigned_user_idx").on(t.assignedUserId),
     uniqueIndex("wa_accounts_jid_uq").on(t.jid),
   ],
 );

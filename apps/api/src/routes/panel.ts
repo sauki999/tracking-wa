@@ -2,6 +2,7 @@ import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { auth } from "../auth";
 import { db, schema } from "../db";
 import { type AppEnv, requireAdmin } from "../lib/context";
 import { v } from "../lib/validator";
@@ -28,10 +29,10 @@ export const panelRoutes = new Hono<AppEnv>()
         role: U.role,
         suspended: U.suspended,
         createdAt: U.createdAt,
-        numbers: sql<number>`(SELECT count(*)::int FROM wa_accounts a WHERE a.user_id = ${UID})`,
-        connected: sql<number>`(SELECT count(*)::int FROM wa_accounts a WHERE a.user_id = ${UID} AND a.status = 'connected')`,
-        leads: sql<number>`(SELECT count(*)::int FROM leads l JOIN wa_accounts a ON a.id = l.wa_account_id WHERE a.user_id = ${UID})`,
-        capiSent: sql<number>`(SELECT count(*)::int FROM capi_events e JOIN leads l ON l.id = e.lead_id JOIN wa_accounts a ON a.id = l.wa_account_id WHERE a.user_id = ${UID} AND e.status = 'success')`,
+        numbers: sql<number>`(SELECT count(*)::int FROM wa_accounts a WHERE a.user_id = ${UID} OR a.assigned_user_id = ${UID})`,
+        connected: sql<number>`(SELECT count(*)::int FROM wa_accounts a WHERE (a.user_id = ${UID} OR a.assigned_user_id = ${UID}) AND a.status = 'connected')`,
+        leads: sql<number>`(SELECT count(*)::int FROM leads l JOIN wa_accounts a ON a.id = l.wa_account_id WHERE a.user_id = ${UID} OR a.assigned_user_id = ${UID})`,
+        capiSent: sql<number>`(SELECT count(*)::int FROM capi_events e JOIN leads l ON l.id = e.lead_id JOIN wa_accounts a ON a.id = l.wa_account_id WHERE (a.user_id = ${UID} OR a.assigned_user_id = ${UID}) AND e.status = 'success')`,
       })
       .from(U)
       .where(like ? or(ilike(U.email, like), ilike(U.name, like)) : undefined)
@@ -39,6 +40,44 @@ export const panelRoutes = new Hono<AppEnv>()
       .limit(200);
     return c.json(rows);
   })
+
+  .post(
+    "/users",
+    v(
+      "json",
+      z.object({
+        name: z.string().trim().min(2).max(100),
+        email: z.string().trim().email(),
+        password: z.string().min(8).max(128),
+        role: z.enum(["user", "admin"]).default("user"),
+      }),
+    ),
+    async (c) => {
+      const { name, email, password, role } = c.req.valid("json");
+      const [existing] = await db.select({ id: U.id }).from(U).where(eq(U.email, email.toLowerCase()));
+      if (existing) {
+        throw new HTTPException(400, { message: "Email sudah terdaftar" });
+      }
+
+      try {
+        const res = await auth.api.signUpEmail({
+          body: {
+            name,
+            email: email.toLowerCase(),
+            password,
+          },
+        });
+
+        if (res && res.user && role === "admin") {
+          await db.update(U).set({ role: "admin" }).where(eq(U.id, res.user.id));
+        }
+
+        return c.json({ ok: true, user: res?.user });
+      } catch (err: any) {
+        throw new HTTPException(400, { message: err.message || "Gagal membuat user" });
+      }
+    },
+  )
 
   .get("/users/:id", idParam, async (c) => {
     const { id } = c.req.valid("param");

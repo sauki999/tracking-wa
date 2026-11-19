@@ -42,6 +42,20 @@ export function AppLayout() {
     );
   if (isError || !data) return <Navigate to="/login" replace />;
 
+  const isAdmin = data.user.role === "admin";
+  const navItems = [
+    { to: "/app/leads", label: "Leads", icon: IconInbox, exact: true },
+    { to: "/app/wa-accounts", label: "WA Accounts", icon: IconBrandWhatsapp },
+    ...(isAdmin
+      ? [
+          { to: "/app/pixels", label: "Pixel", icon: IconTarget },
+          { to: "/app/triggers", label: "Triggers", icon: IconSettingsAutomation },
+          { to: "/app/capi-logs", label: "Log CAPI", icon: IconListDetails },
+        ]
+      : []),
+    { to: "/app/panduan", label: "Panduan", icon: IconBook },
+  ];
+
   const logout = async () => {
     await authClient.signOut();
     qc.clear();
@@ -65,13 +79,18 @@ export function AppLayout() {
               <UnstyledButton>
                 <Group gap={4}>
                   <Text size="sm">{data.user.name}</Text>
+                  {isAdmin && (
+                    <Text size="xs" c="dimmed">
+                      (Admin)
+                    </Text>
+                  )}
                   <IconChevronDown size={14} />
                 </Group>
               </UnstyledButton>
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Label>{data.user.email}</Menu.Label>
-              {data.user.role === "admin" && (
+              {isAdmin && (
                 <Menu.Item component={Link} to="/panel" leftSection={<IconShieldLock size={16} />}>
                   Admin Panel
                 </Menu.Item>
@@ -85,7 +104,7 @@ export function AppLayout() {
       </AppShell.Header>
 
       <AppShell.Navbar p="xs">
-        {nav.map((n) => (
+        {navItems.map((n) => (
           <NavLink
             key={n.to}
             component={Link}

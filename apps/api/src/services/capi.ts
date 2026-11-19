@@ -34,7 +34,12 @@ export async function sendLeadToMeta(
     .from(schema.leads)
     .innerJoin(schema.waAccounts, eq(schema.leads.waAccountId, schema.waAccounts.id))
     .where(eq(schema.leads.id, leadId));
-  if (!row || (opts.userId && row.account.userId !== opts.userId)) {
+  if (
+    !row ||
+    (opts.userId &&
+      row.account.userId !== opts.userId &&
+      row.account.assignedUserId !== opts.userId)
+  ) {
     return { ok: false, code: "not_found", message: "Lead tidak ditemukan" };
   }
   const { lead, account } = row;

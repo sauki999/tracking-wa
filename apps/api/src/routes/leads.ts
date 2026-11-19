@@ -2,6 +2,7 @@ import { and, desc, eq, ilike, isNotNull, lt, or, type SQL } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import type { AuthUser } from "../auth";
 import { db, schema } from "../db";
 import { type AppEnv, requireUser } from "../lib/context";
 import { v } from "../lib/validator";
@@ -24,12 +25,16 @@ const listQuery = z.object({
   cursor: z.string().optional(),
 });
 
-async function ownedLead(userId: string, id: string) {
+async function ownedLead(user: AuthUser, id: string) {
+  const whereConditions: (SQL | undefined)[] = [eq(L.id, id)];
+  if (user.role !== "admin") {
+    whereConditions.push(or(eq(A.userId, user.id), eq(A.assignedUserId, user.id)));
+  }
   const [row] = await db
-    .select({ lead: L, account: { id: A.id, label: A.label, phone: A.phone, pushName: A.pushName } })
+    .select({ lead: L, account: { id: A.id, userId: A.userId, label: A.label, phone: A.phone, pushName: A.pushName } })
     .from(L)
     .innerJoin(A, eq(L.waAccountId, A.id))
-    .where(and(eq(L.id, id), eq(A.userId, userId)));
+    .where(and(...whereConditions));
   if (!row) throw new HTTPException(404, { message: "Lead tidak ditemukan" });
   return row;
 }
@@ -41,7 +46,10 @@ export const leadRoutes = new Hono<AppEnv>()
     const user = c.get("user")!;
     const { accountId, tag, q, cursor } = c.req.valid("query");
 
-    const where: (SQL | undefined)[] = [eq(A.userId, user.id)];
+    const where: (SQL | undefined)[] = [];
+    if (user.role !== "admin") {
+      where.push(or(eq(A.userId, user.id), eq(A.assignedUserId, user.id)));
+    }
     if (accountId) where.push(eq(L.waAccountId, accountId));
     if (tag === "ad") where.push(or(isNotNull(L.ctwaClid), isNotNull(L.adSourceId)));
     if (tag === "potential") where.push(eq(L.isPotential, true));
@@ -94,7 +102,7 @@ export const leadRoutes = new Hono<AppEnv>()
 
   .get("/:id", v("param", z.object({ id: z.uuid() })), async (c) => {
     const user = c.get("user")!;
-    const { lead, account } = await ownedLead(user.id, c.req.valid("param").id);
+    const { lead, account } = await ownedLead(user, c.req.valid("param").id);
     const events = await db
       .select({
         id: schema.capiEvents.id,
@@ -111,7 +119,10 @@ export const leadRoutes = new Hono<AppEnv>()
       .limit(20);
 
     // status Lead Metrix & kesiapan kirim (untuk panel kanan)
-    const [pixel, trigger] = await Promise.all([resolvePixel(user.id, account.id), resolveTrigger(user.id, account.id)]);
+    const [pixel, trigger] = await Promise.all([
+      resolvePixel(account.userId, account.id),
+      resolveTrigger(account.userId, account.id),
+    ]);
     let metrics = null;
     if (trigger) {
       const msgs = trigger.keywords.length
@@ -161,8 +172,8 @@ export const leadRoutes = new Hono<AppEnv>()
   .post("/:id/send", v("param", z.object({ id: z.uuid() })), async (c) => {
     const user = c.get("user")!;
     const { id } = c.req.valid("param");
-    await ownedLead(user.id, id);
-    const r = await sendLeadToMeta(id, { trigger: "manual", sentBy: user.id, userId: user.id });
+    await ownedLead(user, id);
+    const r = await sendLeadToMeta(id, { trigger: "manual", sentBy: user.id });
     if (!r.ok) {
       const status =
         r.code === "not_found"
@@ -184,7 +195,7 @@ export const leadRoutes = new Hono<AppEnv>()
     v("query", z.object({ before: z.coerce.number().int().positive().optional() })),
     async (c) => {
       const user = c.get("user")!;
-      const { lead } = await ownedLead(user.id, c.req.valid("param").id);
+      const { lead } = await ownedLead(user, c.req.valid("param").id);
       const { before } = c.req.valid("query");
       const rows = await db
         .select({ id: M.id, fromMe: M.fromMe, type: M.type, text: M.text, sentAt: M.sentAt })

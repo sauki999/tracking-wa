@@ -5,6 +5,9 @@ import {
   Card,
   Group,
   Menu,
+  Modal,
+  PasswordInput,
+  Select,
   SimpleGrid,
   Stack,
   Table,
@@ -15,7 +18,7 @@ import {
 import { useDebouncedValue } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { IconBan, IconDots, IconSearch, IconUserCheck } from "@tabler/icons-react";
+import { IconBan, IconDots, IconPlus, IconSearch, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, unwrap } from "../../lib/api";
@@ -41,9 +44,23 @@ export function UsersPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [q] = useDebouncedValue(search.trim(), 300);
+  const [createOpened, setCreateOpened] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "user" as "user" | "admin" });
+
   const users = useQuery({ queryKey: ["panel-users", q], queryFn: () => fetchUsers(q || undefined) });
   const stats = useQuery({ queryKey: ["panel-stats"], queryFn: () => unwrap(api.panel.stats.$get()), refetchInterval: 30_000 });
   const refresh = () => qc.invalidateQueries({ queryKey: ["panel-users"] });
+
+  const create = useMutation({
+    mutationFn: () => unwrap((api.panel.users as any).$post({ json: form })),
+    onSuccess: () => {
+      notifications.show({ color: "teal", message: "User berhasil ditambahkan" });
+      setCreateOpened(false);
+      setForm({ name: "", email: "", password: "", role: "user" });
+      refresh();
+    },
+    onError: (e) => notifications.show({ color: "red", message: e.message }),
+  });
 
   const patch = useMutation({
     mutationFn: (p: { id: string; json: { suspended?: boolean; capiSentTotal?: number } }) =>
@@ -73,13 +90,71 @@ export function UsersPage() {
   const e = stats.data?.engine;
   return (
     <Stack>
-      <Title order={2}>Users</Title>
+      <Group justify="space-between" align="center">
+        <Title order={2}>Users</Title>
+        <Button leftSection={<IconPlus size={16} />} onClick={() => setCreateOpened(true)}>
+          Tambah User
+        </Button>
+      </Group>
+
       <SimpleGrid cols={{ base: 2, md: 4 }}>
         <Stat label="Total user" value={stats.data?.users ?? "—"} />
         <Stat label="Nomor terhubung" value={stats.data ? `${stats.data.connected} / ${stats.data.numbers}` : "—"} />
         <Stat label="Sesi engine" value={e ? e.sessions : "offline"} />
         <Stat label="RAM engine (heap / sys)" value={e ? `${e.heapInuseMB.toFixed(0)} / ${e.sysMB.toFixed(0)} MB` : "—"} />
       </SimpleGrid>
+
+      <Modal opened={createOpened} onClose={() => setCreateOpened(false)} title="Tambah User Baru (Staff CS / Admin)">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            create.mutate();
+          }}
+        >
+          <Stack gap="sm">
+            <TextInput
+              label="Nama"
+              placeholder="Nama Staff CS"
+              required
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.currentTarget.value }))}
+            />
+            <TextInput
+              label="Email"
+              placeholder="cs@bisnisanda.com"
+              type="email"
+              required
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.currentTarget.value }))}
+            />
+            <PasswordInput
+              label="Password"
+              placeholder="Minimal 8 karakter"
+              required
+              minLength={8}
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.currentTarget.value }))}
+            />
+            <Select
+              label="Role"
+              data={[
+                { value: "user", label: "Staff CS (User)" },
+                { value: "admin", label: "Admin" },
+              ]}
+              value={form.role}
+              onChange={(v) => setForm((f) => ({ ...f, role: (v as "user" | "admin") || "user" }))}
+            />
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={() => setCreateOpened(false)}>
+                Batal
+              </Button>
+              <Button type="submit" loading={create.isPending}>
+                Simpan User
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
 
       <TextInput
         placeholder="Cari email atau nama"
